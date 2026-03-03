@@ -1,8 +1,9 @@
 package main
 
 import (
-	"/yt/internal/node"
 	"fmt"
+
+	"github.com/smirnovalles/yt/node"
 )
 
 func main() {
