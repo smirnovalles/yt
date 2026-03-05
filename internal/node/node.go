@@ -3,9 +3,13 @@
 package node
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"net"
 	"sync"
+
+	"github.com/smirnovalles/yt/internal/protocol"
 )
 
 type Node struct {
@@ -171,25 +175,55 @@ func (n *Node) handleClient(conn net.Conn, isOutgoing bool) {
 
 	defer n.deleteConn(addr)
 
-	buf := make([]byte, 4096)
+	reader := bufio.NewReader(conn)
 
 	for {
-		// Читаем данные
-		nBytes, err := conn.Read(buf)
+
+		//read header
+		header := make([]byte, protocol.MessageHeaderLen)
+
+		_, err := io.ReadFull(reader, header)
+
 		if err != nil {
-			// Клиент отключился или ошибка
-			fmt.Printf("Connection closed: %v\n", err)
 			break
 		}
 
-		// Обрабатываем полученные данные
-		data := buf[:nBytes]
-		fmt.Printf("Received %d bytes: %s\n", nBytes, string(data))
+		msgType, msgLen, err := protocol.GetHeader(header)
 
-		// TODO: здесь парсинг протокола
+		if err != nil {
+			break
+		}
+
+		payload := make([]byte, msgLen)
+
+		_, err = io.ReadFull(reader, payload)
+		if err != nil {
+			break
+		}
+
+		m, err := protocol.Decode(msgType, payload)
+
+		switch m.Type() {
+		case protocol.TypeHandShake:
+			n.incomingHandShake(m)
+		case protocol.TypeTextMessage:
+			n.incomingText(m)
+		default:
+			//TODO
+		}
+
 		// TODO: отправка ответа
 		// conn.Write([]byte("OK"))
 	}
+}
+
+func (n *Node) incomingHandShake(m protocol.Message) {
+	fmt.Printf("Get handshake:%s", m.(*protocol.HandShakeMessage).GetID())
+
+}
+
+func (n *Node) incomingText(m protocol.Message) {
+	fmt.Printf("Get text:%s", m.(*protocol.TextMessage).GetText())
 }
 
 func (n *Node) Send(peerAddr string, data []byte) error {

@@ -9,9 +9,14 @@ import (
 type MessageType byte
 
 const (
-	TypeHandShake MessageType = 0x01
-	TypeMessage   MessageType = 0x02
+	TypeHandShake   MessageType = 0x01
+	TypeTextMessage MessageType = 0x02
 )
+
+var validTypes = map[MessageType]bool{
+	TypeHandShake:   true,
+	TypeTextMessage: true,
+}
 
 const (
 	MessageTypeLen   = 1
@@ -34,25 +39,6 @@ func setHeader(t MessageType, l int) []byte {
 
 }
 
-func getHeader(data []byte) (t MessageType, payload []byte, err error) {
-
-	len := len(data)
-
-	if len < MessageHeaderLen {
-		return t, nil, fmt.Errorf("data head too short")
-	}
-
-	t = MessageType(data[0])
-	l := binary.BigEndian.Uint16(data[1:3])
-
-	if l > MessageLenMax {
-		return t, nil, fmt.Errorf("data len error")
-	}
-
-	return t, data[3:], nil
-
-}
-
 func Encode(m Message) (data []byte, err error) {
 
 	payload, err := m.GetPayload()
@@ -72,20 +58,16 @@ func Encode(m Message) (data []byte, err error) {
 
 }
 
-func Decode(data []byte) (m Message, err error) {
-
-	t, payload, err := getHeader(data)
-
-	if err != nil {
-		return m, err
-	}
+func Decode(msgType MessageType, payload []byte) (m Message, err error) {
 
 	var msg Message
-	switch t {
+	switch msgType {
 	case TypeHandShake:
 		msg = &HandShakeMessage{}
+	case TypeTextMessage:
+		msg = &TextMessage{}
 	default:
-		return nil, fmt.Errorf("unknown type: %v", t)
+		return nil, fmt.Errorf("unknown type: %v", msgType)
 	}
 
 	err = msg.SetPayload(payload)
@@ -95,4 +77,18 @@ func Decode(data []byte) (m Message, err error) {
 	}
 
 	return msg, err
+}
+
+func GetHeader(header []byte) (msgType MessageType, msgLen uint16, err error) {
+
+	if len(header) < MessageHeaderLen {
+		return 0, 0, fmt.Errorf("header too short")
+	}
+	msgType = MessageType(header[0])
+	msgLen = binary.BigEndian.Uint16(header[1:3])
+
+	if !validTypes[msgType] {
+		return 0, 0, fmt.Errorf("unknown message type: %v", msgType)
+	}
+	return msgType, msgLen, err
 }

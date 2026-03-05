@@ -16,3 +16,5 @@ func (h *HandShakeMessage) SetPayload(data []byte) error {
 func (h *HandShakeMessage) Type() MessageType {
 	return TypeHandShake
 }
+
+func (h *HandShakeMessage) GetID() string { return h.id }
